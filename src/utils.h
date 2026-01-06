@@ -30,6 +30,8 @@
 #if defined(PLATFORM_ANDROID)
     #include <stdio.h>                      // Required for: FILE
     #include <android/asset_manager.h>      // Required for: AAssetManager
+#elif defined(PLATFORM_DESKTOP_DOS)
+    #include <stdarg.h>                     // Required for: va_list
 #endif
 
 #if defined(SUPPORT_TRACELOG)
@@ -43,6 +45,9 @@
 //----------------------------------------------------------------------------------
 #if defined(PLATFORM_ANDROID)
     #define fopen(name, mode) android_fopen(name, mode)
+#elif defined(PLATFORM_DESKTOP_DOS)
+    #define printf mda_printf
+    #define vprintf mda_vprintf
 #endif
 
 //----------------------------------------------------------------------------------
@@ -65,6 +70,15 @@ extern "C" {            // Prevents name mangling of functions
 #if defined(PLATFORM_ANDROID)
 void InitAssetManager(AAssetManager *manager, const char *dataPath);   // Initialize asset manager from android app
 FILE *android_fopen(const char *fileName, const char *mode);           // Replacement for fopen() -> Read-only!
+#endif
+
+#if defined(PLATFORM_DESKTOP_DOS)
+int mda_printf(const char *format, ...);
+int mda_vprintf(const char *format, va_list arguments);
+double fmin(double x, double y);
+double fmax(double x, double y);
+float fminf(float x, float y);
+float fmaxf(float x, float y);
 #endif
 
 #if defined(__cplusplus)

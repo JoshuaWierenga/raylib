@@ -36,7 +36,9 @@
 #define SUPPORT_MODULE_RTEXTURES        1
 #define SUPPORT_MODULE_RTEXT            1       // WARNING: It requires SUPPORT_MODULE_RTEXTURES to load sprite font textures
 #define SUPPORT_MODULE_RMODELS          1
+#ifndef __DJGPP__
 #define SUPPORT_MODULE_RAUDIO           1
+#endif
 
 //------------------------------------------------------------------------------------
 // Module: rcore - Configuration Flags

@@ -51,6 +51,10 @@
     #include "config.h"         // Defines module configuration flags
 #endif
 
+#if defined(PLATFORM_DESKTOP_DOS)
+    #include "utils.h"          // Required for fmin(), fminf(), fmax(), fmaxf()
+#endif
+
 #if defined(SUPPORT_MODULE_RSHAPES)
 
 #include "rlgl.h"       // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2

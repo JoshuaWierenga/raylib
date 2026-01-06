@@ -49,6 +49,11 @@
 #include <stdarg.h>                     // Required for: va_list, va_start(), va_end()
 #include <string.h>                     // Required for: strcpy(), strcat()
 
+#if defined(PLATFORM_DESKTOP_DOS)
+    #include <math.h>                   // Required for: isnan(), signbit()
+    #include <sys/mono.h>               // Required for: _mono_printf(), _mono_putc()
+#endif
+
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
@@ -479,6 +484,68 @@ FILE *android_fopen(const char *fileName, const char *mode)
     }
 }
 #endif  // PLATFORM_ANDROID
+
+#if defined(PLATFORM_DESKTOP_DOS)
+int mda_printf(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    int result = mda_vprintf(format, args);
+
+    va_end(args);
+
+    return result == -1 ? 0 : result;
+}
+
+int mda_vprintf(const char *format, va_list arguments)
+{
+    int result = vsnprintf(NULL, 0, format, arguments);
+    if (result == -1) return 0;
+
+    char buf[result + 1];
+    result = vsnprintf(buf, sizeof buf, format, arguments);
+    if (result == -1) return 0;
+
+    _mono_printf("%s", buf);
+    if (buf[result] = '\n') _mono_putc('\r');
+
+    return result;
+}
+
+// From https://github.com/jart/cosmopolitan under ISC
+double fmin(double x, double y)
+{
+  if (isnan(x)) return y;
+  if (isnan(y)) return x;
+  if (signbit(x) != signbit(y)) return signbit(x) ? x : y;
+  return x < y ? x : y;
+}
+
+float fminf(float x, float y)
+{
+  if (isnan(x)) return y;
+  if (isnan(y)) return x;
+  if (signbit(x) != signbit(y)) return signbit(x) ? x : y;
+  return x < y ? x : y;
+}
+
+double fmax(double x, double y)
+{
+  if (isnan(x)) return y;
+  if (isnan(y)) return x;
+  if (signbit(x) != signbit(y)) return signbit(x) ? y : x;
+  return x < y ? y : x;
+}
+
+float fmaxf(float x, float y)
+{
+  if (isnan(x)) return y;
+  if (isnan(y)) return x;
+  if (signbit(x) != signbit(y)) return signbit(x) ? y : x;
+  return x < y ? y : x;
+}
+#endif
 
 //----------------------------------------------------------------------------------
 // Module Internal Functions Definition
