@@ -326,6 +326,8 @@ void DisableCursor(void)
     CORE.Input.Mouse.cursorHidden = true;
 }
 
+#define MIN(a,b) (((a)<(b))? (a):(b))
+
 // Swap back buffer with front buffer (screen drawing)
 void SwapScreenBuffer(void)
 {
@@ -335,26 +337,34 @@ void SwapScreenBuffer(void)
     // VBE front buffer, 640x480 in BGRX, X is unused and should be zero
 
     // Move from RLSW to VBE back buffer, changing byte order
-    // If the RLSW buffer is smaller than the VBE buffers than pad with black pixels
-    const sw_pixel_t *src = RLSW.framebuffer.pixels;
-    uint8_t *dst = platform.surface->offscreen_ptr;
+    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
+    {
+        // TODO: Explicitly set every fourth byte to 0
+        swBlitFramebuffer(0, 0, platform.surface->x_resolution, platform.surface->y_resolution, 0, 0, RLSW.framebuffer.width, RLSW.framebuffer.height, SW_RGBA, SW_UNSIGNED_BYTE, platform.surface->offscreen_ptr);
+    }
+    else
+    {
+        // If the RLSW buffer is smaller than the VBE buffers than pad with black pixels
+        const sw_pixel_t *src = RLSW.framebuffer.pixels;
+        uint8_t *dst = platform.surface->offscreen_ptr;
 
-    size_t xSkip = 4 * (platform.surface->x_resolution - RLSW.framebuffer.width);
+        size_t xSkip = 4 * (platform.surface->x_resolution - RLSW.framebuffer.width);
 
-    uint8_t color[4];
-    for (int dy = 0; dy < RLSW.framebuffer.height; ++dy) {
-        for (int dx = 0; dx < RLSW.framebuffer.width; ++dx) {
-            sw_framebuffer_read_color8(color, src);
+        uint8_t color[4];
+        for (int dy = 0; dy < MIN(RLSW.framebuffer.height, platform.surface->y_resolution); ++dy) {
+            for (int dx = 0; dx < MIN(RLSW.framebuffer.width, platform.surface->x_resolution); ++dx) {
+                sw_framebuffer_read_color8(color, src);
 
-            dst[0] = color[2];
-            dst[1] = color[1];
-            dst[2] = color[0];
+                dst[0] = color[2];
+                dst[1] = color[1];
+                dst[2] = color[0];
 
-            dst += 4;
-            ++src;
+                dst += 4;
+                ++src;
+            }
+
+            dst += xSkip;
         }
-
-        dst += xSkip;
     }
 
     // Move from VBE back buffer to front buffer
@@ -562,6 +572,9 @@ int InitPlatform(void)
     CORE.Window.display.height = platform.surface->y_resolution;
 
     // TODO: Handle flags
+
+    CORE.Window.screen.width = MIN(CORE.Window.screen.width, CORE.Window.display.width);
+    CORE.Window.screen.height = MIN(CORE.Window.screen.height, CORE.Window.display.height);
 
     CORE.Window.render.width = CORE.Window.screen.width;
     CORE.Window.render.height = CORE.Window.screen.height;
