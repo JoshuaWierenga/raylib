@@ -439,16 +439,16 @@ const char *GetKeyName(int key)
     return "";
 }
 
-static KeyboardKey GetKey(unsigned char scancode, bool pressed, bool extended)
+static KeyboardKey GetKey(unsigned char scancode, char pressed, bool extended)
 {
     unsigned short ext_scancode = scancode;
-    if (!pressed)
+    if (pressed == 0)
     {
         ext_scancode &= ~SCAN_RELEASED_PREFIX;
     }
     if (extended)
     {
-        ext_scancode |= SCAN_EXT_OFT;
+        ext_scancode |= SCAN_EXT;
     }
 
     switch (ext_scancode)
@@ -539,31 +539,30 @@ static KeyboardKey GetKey(unsigned char scancode, bool pressed, bool extended)
         case SCAN_F11: return KEY_F11;
         case SCAN_F12: return KEY_F12;
 
-        case SCAN_EXT_OFT | SCAN_EXT_KP_ENTER: return KEY_KP_ENTER;
-        case SCAN_EXT_OFT | SCAN_EXT_PRINT_SCREEN: return KEY_PRINT_SCREEN;
-        case SCAN_EXT_OFT | SCAN_CTRL: return KEY_RIGHT_CONTROL;
-        case SCAN_EXT_OFT | SCAN_SLASH: return KEY_KP_DIVIDE;
-        case SCAN_EXT_OFT | SCAN_ALT: return KEY_RIGHT_ALT;
-        case SCAN_EXT_OFT | SCAN_HOME: return KEY_HOME;
-        case SCAN_EXT_OFT | SCAN_UP: return KEY_UP;
-        case SCAN_EXT_OFT | SCAN_PGUP: return KEY_PAGE_UP;
-        case SCAN_EXT_OFT | SCAN_LEFT: return KEY_LEFT;
-        case SCAN_EXT_OFT | SCAN_RIGHT: return KEY_RIGHT;
-        case SCAN_EXT_OFT | SCAN_END: return KEY_END;
-        case SCAN_EXT_OFT | SCAN_DOWN: return KEY_DOWN;
-        case SCAN_EXT_OFT | SCAN_PGDN: return KEY_PAGE_DOWN;
-        case SCAN_EXT_OFT | SCAN_INSERT: return KEY_INSERT;
-        case SCAN_EXT_OFT | SCAN_DEL: return KEY_DELETE;
-        case SCAN_EXT_OFT | SCAN_EXT_LGUI: return KEY_LEFT_SUPER;  // TODO: Test, dosbox-x doesn't trigger this
-        case SCAN_EXT_OFT | SCAN_EXT_RGUI: return KEY_RIGHT_SUPER; // TODO: Test, dosbox-x doesn't trigger this
+        case SCAN_EXT | SCAN_EXT_KP_ENTER: return KEY_KP_ENTER; // TODO: Fix, this doesn't trigger for me @JoshuaWierenga
+        case SCAN_EXT | SCAN_EXT_PRINT_SCREEN: return KEY_PRINT_SCREEN;
+        case SCAN_EXT | SCAN_CTRL: return KEY_RIGHT_CONTROL;
+        case SCAN_EXT | SCAN_SLASH: return KEY_KP_DIVIDE;
+        case SCAN_EXT | SCAN_ALT: return KEY_RIGHT_ALT;
+        case SCAN_EXT | SCAN_HOME: return KEY_HOME;
+        case SCAN_EXT | SCAN_UP: return KEY_UP;
+        case SCAN_EXT | SCAN_PGUP: return KEY_PAGE_UP;
+        case SCAN_EXT | SCAN_LEFT: return KEY_LEFT;
+        case SCAN_EXT | SCAN_RIGHT: return KEY_RIGHT;
+        case SCAN_EXT | SCAN_END: return KEY_END;
+        case SCAN_EXT | SCAN_DOWN: return KEY_DOWN;
+        case SCAN_EXT | SCAN_PGDN: return KEY_PAGE_DOWN;
+        case SCAN_EXT | SCAN_INSERT: return KEY_INSERT;
+        case SCAN_EXT | SCAN_DEL: return KEY_DELETE;
+        case SCAN_EXT | SCAN_EXT_LGUI: return KEY_LEFT_SUPER;  // TODO: Test, dosbox-x doesn't trigger this
+        case SCAN_EXT | SCAN_EXT_RGUI: return KEY_RIGHT_SUPER; // TODO: Test, dosbox-x doesn't trigger this
 
         default: return KEY_NULL;
     }
 }
 
-static void HandleKey(unsigned char scancode, bool extended)
+static void HandleKey(unsigned char scancode, char pressed, bool extended)
 {
-    char pressed = scancode < SCAN_RELEASED_PREFIX;
     KeyboardKey key = GetKey(scancode, pressed, extended);
 
     // TRACELOG(LOG_INFO, "KEY: %s0x%hhx: %d", extended ? "0xe0 " : "", scancode, pressed);
@@ -581,7 +580,8 @@ static void HandleKey(unsigned char scancode, bool extended)
     // TODO: Add key to the queue as well?
 }
 
-// TODO: Support modifier(s) + key
+// TODO: Test modifier(s) + key
+// TODO: Support KEY_KB_MENU(0xe0 0x5d, I just don't have one to test) & KEY_KP_EQUAL(no clue)?
 void HandleKeys(bool extended)
 {
     volatile char *map = extended ? ext_keyboard_map : keyboard_map;
@@ -598,7 +598,8 @@ void HandleKeys(bool extended)
 
         map[scancode] = 0;
 
-        HandleKey(scancode, extended);
+        char pressed = scancode < SCAN_RELEASED_PREFIX;
+        HandleKey(scancode, pressed, extended);
     }
 }
 
@@ -636,6 +637,15 @@ void PollInputEvents(void)
 
     HandleKeys(false);
     HandleKeys(true);
+
+    // Pause has no release sequence so release on next frame
+    char pausePressed = keyboard_map[SCAN_EXT_PAUSE] != 0;
+    keyboard_map[SCAN_EXT_PAUSE] = 0;
+    if (pausePressed != 0 || CORE.Input.Keyboard.currentKeyState[KEY_PAUSE])
+    {
+        // TRACELOG(LOG_INFO, "KEY: 0x%hhx: %d", SCAN_EXT_PAUSE, pausePressed);
+        CORE.Input.Keyboard.currentKeyState[KEY_PAUSE] = pausePressed;
+    }
 }
 
 //----------------------------------------------------------------------------------
@@ -736,7 +746,6 @@ int InitPlatform(void)
     keyboard_chain(0);
 
     // TODO: Handle flags
-
 
     if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
     {
