@@ -19,7 +19,6 @@
  #
 		.global _keyboard_map
 		.global _ext_keyboard_map
-		.global _ext_e0_count
 		.global _keyboard_init
 		.global _keyboard_close
 		.global _keyboard_chain
@@ -32,7 +31,8 @@ locking_region_start:
 
 _keyboard_map:	.space 	0x100, 0 # Regular pressed keys + 0xe0 + (ignored) special bytes
 _ext_keyboard_map:	.space 	0x100, 0 # 0xe0 pressed keys
-_ext_e0_count:	.byte	0
+ext_e0_count:	.byte	0
+ext_e1_skip_count:	.byte	0
 
 old_vector:
 old_vector_ofs:	.long	0
@@ -58,18 +58,29 @@ handler_procedure:
  #
 
 		inb	$0x60, %al
+		cmpb	$0, ext_e1_skip_count
+		je	process
+		decb	ext_e1_skip_count
+		jmp	chain
+process:
 		movl	$0, %edx
 		movb	%al, %dl
-		cmpb	$0, _ext_e0_count
+		cmpb	$0, ext_e0_count
 		je	regular
 		movb	$1, _ext_keyboard_map(%edx)
+		decb	ext_e0_count
 		jmp	check
 regular:
 		movb	$1, _keyboard_map(%edx)
 check:
 		cmpb	$0xe0, %al
+		jne	check_2
+		incb	ext_e0_count
+		jmp	chain
+check_2:
+		cmpb	$0xe1, %al
 		jne	chain
-		incb _ext_e0_count
+		movb	$5, ext_e1_skip_count
 
 chain:
  #

@@ -9,7 +9,6 @@ extern "C" {
 
 extern volatile char keyboard_map[0x100];
 extern volatile char ext_keyboard_map[0x100];
-extern volatile char ext_e0_count;
 extern int keyboard_init(void);
 extern void keyboard_close(void);
 extern void keyboard_chain(int toggle);

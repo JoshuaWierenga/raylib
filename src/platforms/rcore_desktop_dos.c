@@ -581,22 +581,15 @@ static void HandleKey(unsigned char scancode, bool extended)
     // TODO: Add key to the queue as well?
 }
 
-// TODO: Support pause
 // TODO: Support modifier(s) + key
-// TODO: Fix F12 release not being detected
 void HandleKeys(bool extended)
 {
-    if (extended && ext_e0_count == 0)
-    {
-        return;
-    }
-
     volatile char *map = extended ? ext_keyboard_map : keyboard_map;
     unsigned char start = extended ? SCAN_EXT_KP_ENTER : SCAN_ESC;
     unsigned char end = extended ? SCAN_EXT_RGUI : SCAN_F12;
     end |= SCAN_RELEASED_PREFIX;
 
-    for (unsigned char scancode = start; scancode < end; ++scancode)
+    for (unsigned char scancode = start; scancode <= end; ++scancode)
     {
         if (map[scancode] == 0)
         {
@@ -604,10 +597,6 @@ void HandleKeys(bool extended)
         }
 
         map[scancode] = 0;
-        if (extended)
-        {
-            --ext_e0_count;
-        }
 
         HandleKey(scancode, extended);
     }
