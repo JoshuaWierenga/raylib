@@ -3234,14 +3234,23 @@ bool ExportAutomationEventList(AutomationEventList list, const char *fileName)
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
     // Export events as binary file
-    // TODO: Save to memory buffer and SaveFileData()
+    // NOTE: Code not used, only for reference if required in the future
     /*
-    unsigned char fileId[4] = "rAE ";
-    FILE *raeFile = fopen(fileName, "wb");
-    fwrite(fileId, sizeof(unsigned char), 4, raeFile);
-    fwrite(&eventCount, sizeof(int), 1, raeFile);
-    fwrite(events, sizeof(AutomationEvent), eventCount, raeFile);
-    fclose(raeFile);
+    if (list.count > 0)
+    {
+        int binarySize = 4 + sizeof(int) + sizeof(AutomationEvent)*list.count;
+        unsigned char *binBuffer = (unsigned char *)RL_CALLOC(binarySize, 1);
+        int offset = 0;
+        memcpy(binBuffer + offset, "rAE ", 4); 
+        offset += 4;
+        memcpy(binBuffer + offset, &list.count, sizeof(int)); 
+        offset += sizeof(int);
+        memcpy(binBuffer + offset, list.events, sizeof(AutomationEvent)*list.count);
+        offset += sizeof(AutomationEvent)*list.count;
+        
+        success = SaveFileData(TextFormat("%s.rae",fileName), binBuffer, binarySize);
+        RL_FREE(binBuffer);
+    }
     */
 
     // Export events as text
