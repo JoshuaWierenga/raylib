@@ -45,6 +45,7 @@
 *
 **********************************************************************************************/
 
+#include "external/mkkbd3/keyboard.h"
 #include "external/vesa-dos-djgpp/src/types.h"
 #include "external/vesa-dos-djgpp/src/vesa.h"
 
@@ -333,8 +334,8 @@ void SwapScreenBuffer(void)
 {
     // Currently there are three buffers:
     // RLSW buffer, user requested size in RGBA
-    // VBE back buffer, 640x480 in BGRX, X is unused and should be zero
-    // VBE front buffer, 640x480 in BGRX, X is unused and should be zero
+    // VBE back buffer, 640/720x480 in BGRX, X is unused and should be zero
+    // VBE front buffer, 640/720x480 in BGRX, X is unused and should be zero
 
     // Move from RLSW to VBE back buffer, changing byte order
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
@@ -438,6 +439,180 @@ const char *GetKeyName(int key)
     return "";
 }
 
+static KeyboardKey GetKey(unsigned char scancode, bool pressed, bool extended)
+{
+    unsigned short ext_scancode = scancode;
+    if (!pressed)
+    {
+        ext_scancode &= ~SCAN_RELEASED_PREFIX;
+    }
+    if (extended)
+    {
+        ext_scancode |= SCAN_EXT_OFT;
+    }
+
+    switch (ext_scancode)
+    {
+        case SCAN_ESC: return KEY_ESCAPE;
+        case SCAN_1: return KEY_ONE;
+        case SCAN_2: return KEY_TWO;
+        case SCAN_3: return KEY_THREE;
+        case SCAN_4: return KEY_FOUR;
+        case SCAN_5: return KEY_FIVE;
+        case SCAN_6: return KEY_SIX;
+        case SCAN_7: return KEY_SEVEN;
+        case SCAN_8: return KEY_EIGHT;
+        case SCAN_9: return KEY_NINE;
+        case SCAN_0: return KEY_ZERO;
+        case SCAN_MINUS: return KEY_MINUS;
+        case SCAN_EQUALS: return KEY_EQUAL;
+        case SCAN_BACKSP: return KEY_BACKSPACE;
+        case SCAN_TAB: return KEY_TAB;
+        case SCAN_Q: return KEY_Q;
+        case SCAN_W: return KEY_W;
+        case SCAN_E: return KEY_E;
+        case SCAN_R: return KEY_R;
+        case SCAN_T: return KEY_T;
+        case SCAN_Y: return KEY_Y;
+        case SCAN_U: return KEY_U;
+        case SCAN_I: return KEY_I;
+        case SCAN_O: return KEY_O;
+        case SCAN_P: return KEY_P;
+        case SCAN_LANGLE: return KEY_LEFT_BRACKET;
+        case SCAN_RANGLE: return KEY_RIGHT_BRACKET;
+        case SCAN_ENTER: return KEY_ENTER;
+        case SCAN_CTRL: return KEY_LEFT_CONTROL;
+        case SCAN_A: return KEY_A;
+        case SCAN_S: return KEY_S;
+        case SCAN_D: return KEY_D;
+        case SCAN_F: return KEY_F;
+        case SCAN_G: return KEY_G;
+        case SCAN_H: return KEY_H;
+        case SCAN_J: return KEY_J;
+        case SCAN_K: return KEY_K;
+        case SCAN_L: return KEY_L;
+        case SCAN_SCOLON: return KEY_SEMICOLON;
+        case SCAN_QUOTA: return KEY_APOSTROPHE;
+        case SCAN_RQUOTA: return KEY_GRAVE;
+        case SCAN_LSHIFT: return KEY_LEFT_SHIFT;
+        case SCAN_BSLASH: return KEY_BACKSLASH;
+        case SCAN_Z: return KEY_Z;
+        case SCAN_X: return KEY_X;
+        case SCAN_C: return KEY_C;
+        case SCAN_V: return KEY_V;
+        case SCAN_B: return KEY_B;
+        case SCAN_N: return KEY_N;
+        case SCAN_M: return KEY_M;
+        case SCAN_COMA: return KEY_COMMA;
+        case SCAN_DOT: return KEY_PERIOD;
+        case SCAN_SLASH: return KEY_SLASH;
+        case SCAN_RSHIFT: return KEY_RIGHT_SHIFT;
+        case SCAN_GREY_STAR: return KEY_KP_MULTIPLY;
+        case SCAN_ALT: return KEY_LEFT_ALT;
+        case SCAN_SPACE: return KEY_SPACE;
+        case SCAN_CAPS: return KEY_CAPS_LOCK;
+        case SCAN_F1: return KEY_F1;
+        case SCAN_F2: return KEY_F2;
+        case SCAN_F3: return KEY_F3;
+        case SCAN_F4: return KEY_F4;
+        case SCAN_F5: return KEY_F5;
+        case SCAN_F6: return KEY_F6;
+        case SCAN_F7: return KEY_F7;
+        case SCAN_F8: return KEY_F8;
+        case SCAN_F9: return KEY_F9;
+        case SCAN_F10: return KEY_F10;
+        case SCAN_NUMLOCK: return KEY_NUM_LOCK;
+        case SCAN_SCRLOCK: return KEY_SCROLL_LOCK;
+        case SCAN_HOME: return KEY_KP_7;
+        case SCAN_UP: return KEY_KP_8;
+        case SCAN_PGUP: return KEY_KP_9;
+        case SCAN_GREY_MINUS: return KEY_KP_SUBTRACT;
+        case SCAN_LEFT: return KEY_KP_4;
+        case SCAN_PAD_5: return KEY_KP_5;
+        case SCAN_RIGHT: return KEY_KP_6;
+        case SCAN_GREY_PLUS: return KEY_KP_ADD;
+        case SCAN_END: return KEY_KP_1;
+        case SCAN_DOWN: return KEY_KP_2;
+        case SCAN_PGDN: return KEY_KP_3;
+        case SCAN_INSERT: return KEY_KP_0;
+        case SCAN_DEL: return KEY_KP_DECIMAL;
+        case SCAN_F11: return KEY_F11;
+        case SCAN_F12: return KEY_F12;
+
+        case SCAN_EXT_OFT | SCAN_EXT_KP_ENTER: return KEY_KP_ENTER;
+        case SCAN_EXT_OFT | SCAN_EXT_PRINT_SCREEN: return KEY_PRINT_SCREEN;
+        case SCAN_EXT_OFT | SCAN_CTRL: return KEY_RIGHT_CONTROL;
+        case SCAN_EXT_OFT | SCAN_SLASH: return KEY_KP_DIVIDE;
+        case SCAN_EXT_OFT | SCAN_ALT: return KEY_RIGHT_ALT;
+        case SCAN_EXT_OFT | SCAN_HOME: return KEY_HOME;
+        case SCAN_EXT_OFT | SCAN_UP: return KEY_UP;
+        case SCAN_EXT_OFT | SCAN_PGUP: return KEY_PAGE_UP;
+        case SCAN_EXT_OFT | SCAN_LEFT: return KEY_LEFT;
+        case SCAN_EXT_OFT | SCAN_RIGHT: return KEY_RIGHT;
+        case SCAN_EXT_OFT | SCAN_END: return KEY_END;
+        case SCAN_EXT_OFT | SCAN_DOWN: return KEY_DOWN;
+        case SCAN_EXT_OFT | SCAN_PGDN: return KEY_PAGE_DOWN;
+        case SCAN_EXT_OFT | SCAN_INSERT: return KEY_INSERT;
+        case SCAN_EXT_OFT | SCAN_DEL: return KEY_DELETE;
+        case SCAN_EXT_OFT | SCAN_EXT_LGUI: return KEY_LEFT_SUPER;  // TODO: Test, dosbox-x doesn't trigger this
+        case SCAN_EXT_OFT | SCAN_EXT_RGUI: return KEY_RIGHT_SUPER; // TODO: Test, dosbox-x doesn't trigger this
+
+        default: return KEY_NULL;
+    }
+}
+
+static void HandleKey(unsigned char scancode, bool extended)
+{
+    char pressed = scancode < SCAN_RELEASED_PREFIX;
+    KeyboardKey key = GetKey(scancode, pressed, extended);
+
+    // TRACELOG(LOG_INFO, "KEY: %s0x%hhx: %d", extended ? "0xe0 " : "", scancode, pressed);
+
+    if (key != KEY_NULL)
+    {
+        CORE.Input.Keyboard.currentKeyState[key] = pressed;
+
+        // TODO: Use current exit key
+        if ((key == KEY_ESCAPE) && (pressed == 1)) CORE.Window.shouldClose = true;
+
+    }
+    else TRACELOG(LOG_WARNING, "INPUT: Unknown (or currently unhandled) virtual keycode %s0x%x", extended ? "0xe0 " : "", scancode);
+
+    // TODO: Add key to the queue as well?
+}
+
+// TODO: Support pause
+// TODO: Support modifier(s) + key
+// TODO: Fix F12 release not being detected
+void HandleKeys(bool extended)
+{
+    if (extended && ext_e0_count == 0)
+    {
+        return;
+    }
+
+    volatile char *map = extended ? ext_keyboard_map : keyboard_map;
+    unsigned char start = extended ? SCAN_EXT_KP_ENTER : SCAN_ESC;
+    unsigned char end = extended ? SCAN_EXT_RGUI : SCAN_F12;
+    end |= SCAN_RELEASED_PREFIX;
+
+    for (unsigned char scancode = start; scancode < end; ++scancode)
+    {
+        if (map[scancode] == 0)
+        {
+            continue;
+        }
+
+        map[scancode] = 0;
+        if (extended)
+        {
+            --ext_e0_count;
+        }
+
+        HandleKey(scancode, extended);
+    }
+}
+
 // Register all input events
 void PollInputEvents(void)
 {
@@ -467,14 +642,11 @@ void PollInputEvents(void)
     //for (int i = 0; i < MAX_TOUCH_POINTS; i++) CORE.Input.Touch.position[i] = (Vector2){ 0, 0 };
 
     // Register previous keys states
-    // NOTE: Android supports up to 260 keys
-    for (int i = 0; i < 260; i++)
-    {
-        CORE.Input.Keyboard.previousKeyState[i] = CORE.Input.Keyboard.currentKeyState[i];
-        CORE.Input.Keyboard.keyRepeatInFrame[i] = 0;
-    }
+    memcpy(CORE.Input.Keyboard.previousKeyState, CORE.Input.Keyboard.currentKeyState, sizeof(CORE.Input.Keyboard.previousKeyState));
+    memset(CORE.Input.Keyboard.keyRepeatInFrame, 0, sizeof(CORE.Input.Keyboard.keyRepeatInFrame));
 
-    // TODO: Poll input events for current platform
+    HandleKeys(false);
+    HandleKeys(true);
 }
 
 //----------------------------------------------------------------------------------
@@ -571,10 +743,17 @@ int InitPlatform(void)
     CORE.Window.display.width = platform.surface->x_resolution;
     CORE.Window.display.height = platform.surface->y_resolution;
 
+    keyboard_init();
+    keyboard_chain(0);
+
     // TODO: Handle flags
 
-    CORE.Window.screen.width = MIN(CORE.Window.screen.width, CORE.Window.display.width);
-    CORE.Window.screen.height = MIN(CORE.Window.screen.height, CORE.Window.display.height);
+
+    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
+    {
+        CORE.Window.screen.width = MIN(CORE.Window.screen.width, CORE.Window.display.width);
+        CORE.Window.screen.height = MIN(CORE.Window.screen.height, CORE.Window.display.height);
+    }
 
     CORE.Window.render.width = CORE.Window.screen.width;
     CORE.Window.render.height = CORE.Window.screen.height;
@@ -607,6 +786,7 @@ int InitPlatform(void)
 // Close platform
 void ClosePlatform(void)
 {
+    keyboard_close();
     VBEshutdown();
 }
 

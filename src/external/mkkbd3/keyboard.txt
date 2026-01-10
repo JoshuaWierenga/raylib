@@ -1,0 +1,60 @@
+This peace of code written by Martynas Kunigelis illustrates the 
+hardware interrupt handling under DJGPP v2.00. It is provided "as is"
+and without any kind of warranty. The author is not responsible for
+any damage or loss this code might cause (though he sees no reason
+why it should :). This code is absolutely free and you can modify it,
+include it in any kind of applications or even *sell* it (if you manage
+to find someone to buy it :).
+
+My goal was not to write a useful keyboard library, but to show how to
+install a protected mode hardware interrupt handler, lock its code and
+data, give it access to program's data segment, and chain to previous 
+handler procedure. The handler itself only keeps track of what keys are 
+down for the moment, it does not do any keystroke buffering or such. It 
+is up to you to write a handler that would satisfy your needs. It is
+advised to have the DPMI specification near you when studying the code.
+
+The file `keyboard.h' declares three functions, an array, one macro and
+lots of constants:
+
+volatile char keyboard_map[128]; -- an array of byte flags indicating
+   whether the key with an appropriate scan code is down. The `volatile'
+   attribute prevents GCC optimizer from caching elements of the array, 
+   since it will never see any code changing them.
+
+int keyboard_init(); -- initialization routine. Performs all necessary 
+   steps and returns zero on success or -1 on failure.
+   
+void keyboard_close(); -- termination routine. Shuts the handler down.
+
+void keyboard_chain(int toggle); -- makes the handler chain to previous
+   keyboard routine if called with non-zero argument. Disables chaining
+   if called with a zero argument. With chaining disabled, ^C, ^Break and 
+   even ctrl-alt-del will not work. In addition, if you call keyboard_chain
+   to restore chaining, it clears BIOS shift/alt/control status bits at
+   0400:0017. The reason for this is that if shift (or alt, or ctrl) key is
+   down when you call keyboard_chain(0), BIOS will think it still is after
+   you call keyboard_chain(1), because it never got to see you releasing
+   it. Thus, it is a good idea to restore chaining (if disabled) before 
+   calling keyboard_close(), because you might get capitals or even alt or
+   control sequences when typing ordinary characters afterwards.
+
+#define keyboard_key_down(scan) ((int)keyboard_map[(scan)]) -- it's that
+   simple. The SCAN_... constants defined as well to make life easier.
+
+
+I would like to thank the whole DJGPP development team for bringing us
+such a great programming environment. What else could one wish... I also
+thank all the people who helped me to test this code and track down 
+multiple bugs. God bless you all, go write something really cool!..
+
+Best regards,
+Martynas Kunigelis
+
+P.S. until June 1996 you can e-mail me at Martynas.Kunigelis@vm.ktu.lt;
+     Later just write to the DJGPP mailing list at djgpp@delorie.com: I'll
+     be there.
+     
+P.P.S. if someone is willing to translate this file into *normal* English,
+     please do so and send me a copy. My English *sucks* when it comes to
+     writing documentation :(.
