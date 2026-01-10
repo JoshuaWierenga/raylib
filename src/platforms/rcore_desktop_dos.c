@@ -571,8 +571,7 @@ static void HandleKey(unsigned char scancode, char pressed, bool extended)
     {
         CORE.Input.Keyboard.currentKeyState[key] = pressed;
 
-        // TODO: Use current exit key
-        if ((key == KEY_ESCAPE) && (pressed == 1)) CORE.Window.shouldClose = true;
+        if ((key == CORE.Input.Keyboard.exitKey) && (pressed == 1)) CORE.Window.shouldClose = true;
 
     }
     else TRACELOG(LOG_WARNING, "INPUT: Unknown (or currently unhandled) virtual keycode %s0x%x", extended ? "0xe0 " : "", scancode);

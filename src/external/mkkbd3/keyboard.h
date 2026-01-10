@@ -105,6 +105,7 @@ extern void keyboard_chain(int toggle);
 
 #define SCAN_RELEASED_PREFIX 0x80
 #define SCAN_EXT_PREFIX 0xE0
+#define SCAN_EXT_PAUSE 0xE1
 #define SCAN_EXT (SCAN_EXT_PREFIX << 8)
 #define SCAN_EXT_KP_ENTER 0x1C
 #define SCAN_EXT_PRINT_SCREEN 0x2A // Ignoring 0x37
