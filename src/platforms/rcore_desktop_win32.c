@@ -151,7 +151,7 @@ static PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB = NULL;
 
 #define WINDOW_STYLE_EX         0
 
-#define CLASS_NAME              L"raylibWindow"
+#define CLASS_NAME              "raylibWindow"
 
 #define FLAG_MASK_OPTIONAL      (FLAG_VSYNC_HINT)
 #define FLAG_MASK_REQUIRED      ~(FLAG_MASK_OPTIONAL)
@@ -299,7 +299,7 @@ static void CheckFlags(const char *context, HWND hwnd, DWORD flags, DWORD expect
     }
 
     SetLastError(0);
-    LONG actualStyle = (LONG)GetWindowLongPtrW(hwnd, GWL_STYLE);
+    LONG actualStyle = (LONG)GetWindowLongPtrA(hwnd, GWL_STYLE);
     if ((actualStyle & styleCheckMask) != (expectedStyle & styleCheckMask))
     {
         TRACELOG(LOG_ERROR, "WIN32: FLAGS: %s: expected style 0x%x but got 0x%x (diff=0x%x, mask=0x%x, lasterror=%lu)",
@@ -338,7 +338,11 @@ static SIZE CalcWindowSize(UINT dpi, SIZE clientSize, DWORD style)
 {
     RECT rect = { 0, 0, clientSize.cx, clientSize.cy };
 
+#ifdef RL_WIN95
+    int result = AdjustWindowRectEx(&rect, style, 0, WINDOW_STYLE_EX);
+#else
     int result = AdjustWindowRectExForDpi(&rect, style, 0, WINDOW_STYLE_EX, dpi);
+#endif
     if (result == 0) TRACELOG(LOG_ERROR, "WIN32: Failed to adjust window rect [ERROR: %lu]", GetLastError());
 
     return (SIZE){ rect.right - rect.left, rect.bottom - rect.top };
@@ -358,6 +362,7 @@ static bool UpdateWindowSize(int mode, HWND hwnd, int width, int height, unsigne
 
     if (flags & FLAG_BORDERLESS_WINDOWED_MODE)
     {
+#ifndef RL_WIN95
         MONITORINFO info = { 0 };
         HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
         info.cbSize = sizeof(info);
@@ -379,12 +384,17 @@ static bool UpdateWindowSize(int mode, HWND hwnd, int width, int height, unsigne
         {
             TRACELOG(LOG_ERROR, "WIN32: Failed to set window position [ERROR: %lu]", GetLastError());
         }
+#endif
 
         return true;
     }
 
     // Get size in pixels from points, considering high-dpi
+#ifdef RL_WIN95
+    UINT dpi = 96;
+#else
     UINT dpi = GetDpiForWindow(hwnd);
+#endif
     float dpiScale = ((float)dpi)/96.0f;
     bool dpiScaling = flags & FLAG_WINDOW_HIGHDPI;
     SIZE desiredSize = {
@@ -410,6 +420,12 @@ static bool UpdateWindowSize(int mode, HWND hwnd, int width, int height, unsigne
 
     if (mode == 0) // UPDATE_WINDOW_FIRST
     {
+        #define MAX(a,b) (((a)>(b))? (a):(b))
+
+#ifdef RL_WIN95
+        LONG monitorWidth = GetSystemMetrics(SM_CXSCREEN);
+        LONG monitorHeight = GetSystemMetrics(SM_CYSCREEN);
+#else
         HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
         if (!monitor) TRACELOG(LOG_ERROR, "WIN32: Failed to get monitor from window [ERROR: %lu]", GetLastError());
 
@@ -417,10 +433,9 @@ static bool UpdateWindowSize(int mode, HWND hwnd, int width, int height, unsigne
         info.cbSize = sizeof(info);
         if (!GetMonitorInfoW(monitor, &info)) TRACELOG(LOG_ERROR, "WIN32: Failed to get monitor info [ERROR: %lu]", GetLastError());
 
-        #define MAX(a,b) (((a)>(b))? (a):(b))
-
         LONG monitorWidth = info.rcMonitor.right - info.rcMonitor.left;
         LONG monitorHeight = info.rcMonitor.bottom - info.rcMonitor.top;
+#endif
         windowPos = (POINT){
             MAX(0, (monitorWidth - windowSize.cx)/2),
             MAX(0, (monitorHeight - windowSize.cy)/2),
@@ -439,6 +454,9 @@ static bool UpdateWindowSize(int mode, HWND hwnd, int width, int height, unsigne
 // Verify if we are running in Windows 10 version 1703 (Creators Update)
 static BOOL IsWindows10Version1703OrGreaterWin32(void)
 {
+#ifdef RL_WIN95
+    return FALSE;
+#else
     HMODULE ntdll = LoadLibraryW(L"ntdll.dll");
 
     DWORD (*Verify)(RTL_OSVERSIONINFOEXW*, ULONG, ULONGLONG) =
@@ -461,6 +479,7 @@ static BOOL IsWindows10Version1703OrGreaterWin32(void)
     VER_SET_CONDITION(cond, VER_BUILDNUMBER, VER_GREATER_EQUAL);
 
     return 0 == (*Verify)(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_BUILDNUMBER, cond);
+#endif
 }
 
 // Get OpenGL function pointers
@@ -477,7 +496,7 @@ static void *WglGetProcAddress(const char *procname)
         (proc == (void *)-1))
     {
         // TODO: Keep gl module pointer as global platform data?
-        HMODULE glModule = LoadLibraryW(L"opengl32.dll");
+        HMODULE glModule = LoadLibraryA("opengl32.dll");
         proc = (void *)GetProcAddress(glModule, procname);
 
         //if (proc == NULL) TRACELOG(LOG_ERROR, "GL: GetProcAddress() failed to get %s [%p], error=%u", procname, proc, GetLastError());
@@ -672,23 +691,23 @@ static KeyboardKey GetKeyFromWparam(WPARAM wparam)
 }
 
 // Get cursor name
-static LPCWSTR GetCursorName(int cursor)
+static LPCSTR GetCursorName(int cursor)
 {
-    LPCWSTR name = (LPCWSTR)IDC_ARROW;
+    LPCSTR name = (LPCSTR)IDC_ARROW;
 
     switch (cursor)
     {
-        case MOUSE_CURSOR_DEFAULT: name = (LPCWSTR)IDC_ARROW; break;
-        case MOUSE_CURSOR_ARROW: name = (LPCWSTR)IDC_ARROW; break;
-        case MOUSE_CURSOR_IBEAM: name = (LPCWSTR)IDC_IBEAM; break;
-        case MOUSE_CURSOR_CROSSHAIR: name = (LPCWSTR)IDC_CROSS; break;
-        case MOUSE_CURSOR_POINTING_HAND: name = (LPCWSTR)IDC_HAND; break;
-        case MOUSE_CURSOR_RESIZE_EW: name = (LPCWSTR)IDC_SIZEWE; break;
-        case MOUSE_CURSOR_RESIZE_NS: name = (LPCWSTR)IDC_SIZENS; break;
-        case MOUSE_CURSOR_RESIZE_NWSE: name = (LPCWSTR)IDC_SIZENWSE; break;
-        case MOUSE_CURSOR_RESIZE_NESW: name = (LPCWSTR)IDC_SIZENESW; break;
-        case MOUSE_CURSOR_RESIZE_ALL: name = (LPCWSTR)IDC_SIZEALL; break;
-        case MOUSE_CURSOR_NOT_ALLOWED: name = (LPCWSTR)IDC_NO; break;
+        case MOUSE_CURSOR_DEFAULT: name = (LPCSTR)IDC_ARROW; break;
+        case MOUSE_CURSOR_ARROW: name = (LPCSTR)IDC_ARROW; break;
+        case MOUSE_CURSOR_IBEAM: name = (LPCSTR)IDC_IBEAM; break;
+        case MOUSE_CURSOR_CROSSHAIR: name = (LPCSTR)IDC_CROSS; break;
+        case MOUSE_CURSOR_POINTING_HAND: name = (LPCSTR)IDC_HAND; break;
+        case MOUSE_CURSOR_RESIZE_EW: name = (LPCSTR)IDC_SIZEWE; break;
+        case MOUSE_CURSOR_RESIZE_NS: name = (LPCSTR)IDC_SIZENS; break;
+        case MOUSE_CURSOR_RESIZE_NWSE: name = (LPCSTR)IDC_SIZENWSE; break;
+        case MOUSE_CURSOR_RESIZE_NESW: name = (LPCSTR)IDC_SIZENESW; break;
+        case MOUSE_CURSOR_RESIZE_ALL: name = (LPCSTR)IDC_SIZEALL; break;
+        case MOUSE_CURSOR_NOT_ALLOWED: name = (LPCSTR)IDC_NO; break;
         default: break;
     }
 
@@ -877,18 +896,18 @@ void SetWindowIcon(Image image)
     HDC hdc = GetDC(platform.hwnd);
 
     // Create 32-bit BGRA DIB for color
-    BITMAPV5HEADER bi = { 0 };
+    BITMAPV4HEADER bi = { 0 };
     ZeroMemory(&bi, sizeof(bi));
-    bi.bV5Size = sizeof(bi);
-    bi.bV5Width = image.width;
-    bi.bV5Height = -image.height; // Negative = top-down bitmap
-    bi.bV5Planes = 1;
-    bi.bV5BitCount = 32;
-    bi.bV5Compression = BI_BITFIELDS;
-    bi.bV5RedMask = 0x00FF0000;
-    bi.bV5GreenMask = 0x0000FF00;
-    bi.bV5BlueMask = 0x000000FF;
-    bi.bV5AlphaMask = 0xFF000000;
+    bi.bV4Size = sizeof(bi);
+    bi.bV4Width = image.width;
+    bi.bV4Height = -image.height; // Negative = top-down bitmap
+    bi.bV4Planes = 1;
+    bi.bV4BitCount = 32;
+    bi.bV4V4Compression = BI_BITFIELDS;
+    bi.bV4RedMask = 0x00FF0000;
+    bi.bV4GreenMask = 0x0000FF00;
+    bi.bV4BlueMask = 0x000000FF;
+    bi.bV4AlphaMask = 0xFF000000;
 
     unsigned char *targetBits = NULL;
     HBITMAP hColorBitmap = CreateDIBSection(hdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, (void **)&targetBits, NULL, 0);
@@ -946,10 +965,10 @@ void SetWindowTitle(const char *title)
 {
     CORE.Window.title = title;
 
-    WCHAR *titleWide = NULL;
-    A_TO_W_ALLOCA(titleWide, CORE.Window.title);
+    // WCHAR *titleWide = NULL;
+    // A_TO_W_ALLOCA(titleWide, CORE.Window.title);
 
-    int result = SetWindowTextW(platform.hwnd, titleWide);
+    int result = SetWindowTextA(platform.hwnd, title);
     if (result == 0) TRACELOG(LOG_WARNING, "WIN32: Failed to set window title [ERROR: %lu]", GetLastError());
 }
 
@@ -1020,10 +1039,15 @@ void *GetWindowHandle(void)
 
 int GetMonitorCount(void)
 {
+  // TODO: Support 98+ which have EnumDisplayMonitors
+#ifdef RL_WIN95
+    int count = 1;
+#else
     int count = 0;
 
     int result = EnumDisplayMonitors(NULL, NULL, CountMonitorsProc, (LPARAM)&count);
     if (result == 0) TRACELOG(LOG_ERROR, "%s failed, error=%lu", "EnumDisplayMonitors", GetLastError());
+#endif
 
     return count;
 }
@@ -1031,6 +1055,9 @@ int GetMonitorCount(void)
 // Get current monitor where window is placed
 int GetCurrentMonitor(void)
 {
+#ifdef RL_WIN95
+    return 0;
+#else
     HMONITOR monitor = MonitorFromWindow(platform.hwnd, MONITOR_DEFAULTTOPRIMARY);
     if (!monitor) TRACELOG(LOG_ERROR, "%s failed, error=%lu", "MonitorFromWindow", GetLastError());
 
@@ -1043,6 +1070,7 @@ int GetCurrentMonitor(void)
     if (result == 0) TRACELOG(LOG_ERROR, "%s failed, error=%lu", "EnumDisplayMonitors", GetLastError());
 
     return info.matchIndex;
+#endif
 }
 
 // Get selected monitor position
@@ -1104,7 +1132,11 @@ Vector2 GetWindowPosition(void)
 // Get window scale DPI factor for current monitor
 Vector2 GetWindowScaleDPI(void)
 {
+#ifdef RL_WIN95
+    float scale = 1;
+#else
     float scale = ((float)GetDpiForWindow(platform.hwnd))/96.0f;
+#endif
     return (Vector2){ scale, scale };
 }
 
@@ -1134,7 +1166,7 @@ Image GetClipboardImage(void)
 // Show mouse cursor
 void ShowCursor(void)
 {
-    SetCursor(LoadCursorW(NULL, (LPCWSTR)IDC_ARROW));
+    SetCursor(LoadCursorA(NULL, (LPCSTR)IDC_ARROW));
     CORE.Input.Mouse.cursorHidden = false;
 }
 
@@ -1159,8 +1191,10 @@ void EnableCursor(void)
         rid.usUsage = 0x02; // HID_USAGE_GENERIC_MOUSE
         rid.dwFlags = RIDEV_REMOVE; // Add to this window even in background
         rid.hwndTarget = NULL;
+#ifndef RL_WIN95
         int result = RegisterRawInputDevices(&rid, 1, sizeof(rid));
         if (result == 0) TRACELOG(LOG_WARNING, "WIN32: Failed to register raw input devices [ERROR: %lu]", GetLastError());
+#endif
 
         ShowCursor();
         CORE.Input.Mouse.cursorLocked = false;
@@ -1177,8 +1211,10 @@ void DisableCursor(void)
         rid.usUsage = 0x02; // HID_USAGE_GENERIC_MOUSE
         rid.dwFlags = RIDEV_INPUTSINK; // Add to this window even in background
         rid.hwndTarget = platform.hwnd;
+#ifndef RL_WIN95
         int result = RegisterRawInputDevices(&rid, 1, sizeof(rid));
         if (result == 0) TRACELOG(LOG_WARNING, "WIN32: Failed to register raw input devices [ERROR: %lu]", GetLastError());
+#endif
 
         RECT clientRect = { 0 };
         if (!GetClientRect(platform.hwnd, &clientRect)) TRACELOG(LOG_WARNING, "WIN32: Failed to get client rectangle [ERROR: %lu]", GetLastError());
@@ -1230,7 +1266,7 @@ void SwapScreenBuffer(void)
 // Get elapsed time measure in seconds
 double GetTime(void)
 {
-    LARGE_INTEGER now = 0;
+    LARGE_INTEGER now = { 0 };
     QueryPerformanceCounter(&now);
     return (double)(now.QuadPart - CORE.Time.base)/(double)platform.timerFrequency.QuadPart;
 }
@@ -1287,8 +1323,8 @@ void SetMousePosition(int x, int y)
 // Set mouse cursor
 void SetMouseCursor(int cursor)
 {
-    LPCWSTR cursorName = GetCursorName(cursor);
-    HCURSOR hcursor = LoadCursorW(NULL, cursorName);
+    LPCSTR cursorName = GetCursorName(cursor);
+    HCURSOR hcursor = LoadCursorA(NULL, cursorName);
     if (!hcursor) TRACELOG(LOG_ERROR, "WIN32: Failed to load requested cursor [ERROR: %lu]", GetLastError());
 
     SetCursor(hcursor);
@@ -1336,10 +1372,10 @@ void PollInputEvents(void)
 
     // Process windows messages
     MSG msg = { 0 };
-    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+    while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
     {
         TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+        DispatchMessageA(&msg);
     }
 }
 
@@ -1470,14 +1506,17 @@ HGLRC InitOpenGL(HWND hwnd, HDC hdc)
         // ERROR_INVALID_VERSION_ARB (0x2095)
         // ERROR_INVALID_PROFILE_ARB (0x2096)
         if (realContext == NULL) TRACELOG(LOG_ERROR, "GL: Error creating requested context: %lu", GetLastError());
+
+        // Cleanup dummy temp context
+        wglMakeCurrent(NULL, NULL);
+        wglDeleteContext(tempContext);
+
+        // Activate real context
+        if (realContext) wglMakeCurrent(hdc, realContext);
+    } else {
+        realContext = tempContext;
     }
 
-    // Cleanup dummy temp context
-    wglMakeCurrent(NULL, NULL);
-    wglDeleteContext(tempContext);
-
-    // Activate real context
-    if (realContext) wglMakeCurrent(hdc, realContext);
 
     // Once we got a real modern OpenGL context,
     // we can load required extensions (function pointers)
@@ -1515,29 +1554,33 @@ int InitPlatform(void)
     }
 */
 
-    HINSTANCE hInstance = GetModuleHandleW(0);
+    HINSTANCE hInstance = GetModuleHandleA(0);
 
     // Define window class
-    WNDCLASSEXW windowClass = {
-        .cbSize = sizeof(WNDCLASSEXW),
+    WNDCLASSEXA windowClass = {
+        .cbSize = sizeof(WNDCLASSEXA),
         .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
         .lpfnWndProc = WndProc,                         // Custom procedure assigned
         .cbWndExtra = sizeof(LONG_PTR),                 // extra space for the Tuple object ptr
         .hInstance = hInstance,
-        .hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW), // TODO: Audit if we want to set this since we're implementing WM_SETCURSOR
-        .lpszClassName = CLASS_NAME                     // Class name: L"raylibWindow"
+        .hCursor = LoadCursorA(NULL, (LPCSTR)IDC_ARROW), // TODO: Audit if we want to set this since we're implementing WM_SETCURSOR
+        .lpszClassName = CLASS_NAME                     // Class name: "raylibWindow"
     };
 
     // Load user-provided icon if available
     // NOTE: raylib resource file defaults to GLFW_ICON id, so looking for same identifier
-    windowClass.hIcon = LoadImageW(hInstance, L"GLFW_ICON", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
-    if (!windowClass.hIcon) windowClass.hIcon = LoadImageW(NULL, (LPCWSTR)IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    windowClass.hIcon = LoadImageA(hInstance, "GLFW_ICON", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    if (!windowClass.hIcon) windowClass.hIcon = LoadImageA(NULL, (LPCSTR)IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
 
     // Register window class
-    result = (int)RegisterClassExW(&windowClass);
+    result = (int)RegisterClassExA(&windowClass);
     if (result == 0) TRACELOG(LOG_ERROR, "WIN32: Failed to register window class [ERROR: %lu]", GetLastError());
 
     // Get primary monitor info
+#ifdef RL_WIN95
+    CORE.Window.display.width = GetSystemMetrics(SM_CXSCREEN);
+    CORE.Window.display.height = GetSystemMetrics(SM_CYSCREEN);
+#else
     POINT primaryTopLeft = { 0 };
     HMONITOR monitor = MonitorFromPoint(primaryTopLeft, MONITOR_DEFAULTTOPRIMARY);
     if (monitor != NULL)
@@ -1554,6 +1597,7 @@ int InitPlatform(void)
         }
     }
     else TRACELOG(LOG_WARNING, "WIN32: DISPLAY: Failed to get primary monitor from point [ERROR: %u]", GetLastError());
+#endif
 
     // Adjust the window rectangle so the *client area* matches desired size
     // NOTE: Window width/height includes borders and title-bar
@@ -1567,19 +1611,19 @@ int InitPlatform(void)
 
     // Create window
     // NOTE: Title string needs to be converted to WCHAR
-    WCHAR *titleWide = NULL;
-    A_TO_W_ALLOCA(titleWide, CORE.Window.title);
+    // WCHAR *titleWide = NULL;
+    // A_TO_W_ALLOCA(titleWide, CORE.Window.title);
 
     // Create window and get handle
-    platform.hwnd = CreateWindowExW(
+    platform.hwnd = CreateWindowExA(
         WINDOW_STYLE_EX,
         CLASS_NAME,
-        titleWide,
+        CORE.Window.title,
         MakeWindowStyle(CORE.Window.flags),     // WS_OVERLAPPEDWINDOW | WS_VISIBLE
         CW_USEDEFAULT, CW_USEDEFAULT,
         windowWidth, windowHeight,  // TODO: Window size [width, height], needs to be updated?
         NULL, NULL,
-        GetModuleHandleW(NULL), NULL);
+        GetModuleHandleA(NULL), NULL);
 
     if (!platform.hwnd)
     {
@@ -1764,7 +1808,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
                 STYLESTRUCT *ss = (STYLESTRUCT *)lparam;
                 GetStyleChangeFlagOps(CORE.Window.flags, ss, deferredFlags);
 
+#ifdef RL_WIN95
+                UINT dpi = 96;
+#else
                 UINT dpi = GetDpiForWindow(hwnd);
+#endif
                 // Get client size (framebuffer inside the window)
                 RECT rect = { 0 };
                 GetClientRect(hwnd, &rect);
@@ -1794,7 +1842,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
             Mized mized = MIZED_NONE;
             bool isIconic = IsIconic(hwnd);
-            bool styleMinimized = !!(WS_MINIMIZE & GetWindowLongPtrW(hwnd, GWL_STYLE));
+            bool styleMinimized = !!(WS_MINIMIZE & GetWindowLongPtrA(hwnd, GWL_STYLE));
             if (isIconic != styleMinimized) TRACELOG(LOG_WARNING, "WIN32: IsIconic state different from WS_MINIMIZED state");
 
             if (isIconic) mized = MIZED_MIN;
@@ -1812,6 +1860,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
                 case MIZED_NONE:
                 {
                     deferredFlags->clear |= (FLAG_WINDOW_MINIMIZED | FLAG_WINDOW_MAXIMIZED);
+#ifndef RL_WIN95
                     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
                     MONITORINFO info;
                     info.cbSize = sizeof(info);
@@ -1822,6 +1871,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
                         (pos->cx == (info.rcMonitor.right - info.rcMonitor.left)) &&
                         (pos->cy == (info.rcMonitor.bottom - info.rcMonitor.top))) deferredFlags->set |= FLAG_BORDERLESS_WINDOWED_MODE;
                     else deferredFlags->clear |= FLAG_BORDERLESS_WINDOWED_MODE;
+#endif
 
                 } break;
                 case MIZED_MIN:
@@ -1852,6 +1902,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
             WINDOWPOS *pos = (WINDOWPOS*)lparam;
             if (!(pos->flags & SWP_NOSIZE)) HandleWindowResize(hwnd, &platform.appScreenWidth, &platform.appScreenHeight);
         } break;
+#ifndef RL_WIN95
         case WM_GETDPISCALEDSIZE:
         {
             SIZE *inoutSize = (SIZE *)lparam;
@@ -1896,12 +1947,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
             // TODO: Update screen data, render size, screen scaling, viewport...
 
         } break;
+#endif
         case WM_SETCURSOR:
         {
             // Called when mouse moves, enters/leaves window...
             if (LOWORD(lparam) == HTCLIENT)
             {
-                SetCursor(CORE.Input.Mouse.cursorHidden? NULL : LoadCursorW(NULL, (LPCWSTR)IDC_ARROW));
+                SetCursor(CORE.Input.Mouse.cursorHidden? NULL : LoadCursorA(NULL, (LPCSTR)IDC_ARROW));
                 return 0;
             }
 
@@ -1960,13 +2012,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
             }
         } break;
         case WM_MOUSEWHEEL: CORE.Input.Mouse.currentWheelMove.y = ((float)GET_WHEEL_DELTA_WPARAM(wparam))/WHEEL_DELTA; break;
+#ifndef RL_WIN95
         case WM_MOUSEHWHEEL: CORE.Input.Mouse.currentWheelMove.x = ((float)GET_WHEEL_DELTA_WPARAM(wparam))/WHEEL_DELTA; break;
+#endif
         case WM_APP_UPDATE_WINDOW_SIZE:
         {
             //UpdateWindowSize(UPDATE_WINDOW_NORMAL, hwnd, platform.appScreenWidth, platform.appScreenHeight, CORE.Window.flags);
         } break;
 
-        default: result = DefWindowProcW(hwnd, msg, wparam, lparam); // Message passed directly for execution (default behaviour)
+        default: result = DefWindowProcA(hwnd, msg, wparam, lparam); // Message passed directly for execution (default behaviour)
     }
     //------------------------------------------------------------------------------------
 
@@ -2013,6 +2067,7 @@ static void HandleMouseButton(int button, char state)
 }
 
 // Handle raw input event
+#ifndef RL_WIN95
 static void HandleRawInput(LPARAM lparam)
 {
     RAWINPUT input = { 0 };
@@ -2035,6 +2090,7 @@ static void HandleRawInput(LPARAM lparam)
     //if (CORE.Input.Mouse.currentPosition.x != 0) abort();
     //if (CORE.Input.Mouse.currentPosition.y != 0) abort();
 }
+#endif
 
 // Handle window resizing event
 static void HandleWindowResize(HWND hwnd, int *width, int *height)
@@ -2054,7 +2110,11 @@ static void HandleWindowResize(HWND hwnd, int *width, int *height)
 
     SetupViewport(clientSize.cx, clientSize.cy);
     CORE.Window.resizedLastFrame = true;
+#ifdef RL_WIN95
+    float dpiScale = 1;
+#else
     float dpiScale = ((float)GetDpiForWindow(hwnd))/96.0f;
+#endif
     bool highdpi = !!(CORE.Window.flags & FLAG_WINDOW_HIGHDPI);
     unsigned int screenWidth = highdpi? (unsigned int)(((float)clientSize.cx)/dpiScale) : clientSize.cx;
     unsigned int screenHeight = highdpi? (unsigned int)(((float)clientSize.cy)/dpiScale) : clientSize.cy;
@@ -2081,7 +2141,7 @@ static void UpdateWindowStyle(HWND hwnd, unsigned desiredFlags)
     if (current != desired)
     {
         SetLastError(0);
-        DWORD previous = STYLE_MASK_WRITABLE & SetWindowLongPtrW(hwnd, GWL_STYLE, desired);
+        DWORD previous = STYLE_MASK_WRITABLE & SetWindowLongPtrA(hwnd, GWL_STYLE, desired);
         if (previous != current)
         {
             TRACELOG(LOG_ERROR, "WIN32: WINDOW: SetWindowLongPtr() returned writable flags 0x%x but expected 0x%x (diff=0x%x, error=%lu)",
