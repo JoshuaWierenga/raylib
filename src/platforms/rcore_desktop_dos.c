@@ -58,6 +58,7 @@ typedef struct {
     VBESURFACE *surface;
     bool mouseSupported;
     bool mouseMiddleClickSupported;
+    bool mouseScrollWheelSupported;
 } PlatformData;
 
 //----------------------------------------------------------------------------------
@@ -708,26 +709,27 @@ void PollInputEvents(void)
     memcpy(CORE.Input.Keyboard.previousKeyState, CORE.Input.Keyboard.currentKeyState, sizeof(CORE.Input.Keyboard.previousKeyState));
     memset(CORE.Input.Keyboard.keyRepeatInFrame, 0, sizeof(CORE.Input.Keyboard.keyRepeatInFrame));
 
-    // Register previous mouse wheel state
-    // TODO: Set mouse wheel position
-    CORE.Input.Mouse.previousWheelMove = CORE.Input.Mouse.currentWheelMove;
-    CORE.Input.Mouse.currentWheelMove = (Vector2){ 0.0f, 0.0f };
-
-    // Register previous mouse position
-    CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
-    unsigned int x = 0;
-    unsigned int y = 0;
+    short mouseScroll = 0;
+    unsigned int mouseX = 0;
+    unsigned int mouseY = 0;
     if (platform.mouseSupported)
     {
         __dpmi_regs r;
         r.x.ax = 0x03;
         __dpmi_int(0x33, &r);
-        // TODO: Register mouse buttons, stored in r.x.bx
-        x = r.x.cx * platform.surface->x_resolution / 640;
-        y = r.x.dx * platform.surface->y_resolution / 200;
         HandleMouseButtons(r.x.bx);
+        if (platform.mouseScrollWheelSupported) mouseScroll = (short)r.x.bx >> 8;
+        mouseX = r.x.cx * platform.surface->x_resolution / 640;
+        mouseY = r.x.dx * platform.surface->y_resolution / 200;
     }
-    CORE.Input.Mouse.currentPosition = (Vector2){ x, y };
+
+    // Register previous mouse wheel state
+    CORE.Input.Mouse.previousWheelMove = CORE.Input.Mouse.currentWheelMove;
+    CORE.Input.Mouse.currentWheelMove.y = mouseScroll;
+
+    // Register previous mouse position
+    CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
+    CORE.Input.Mouse.currentPosition = (Vector2){ mouseX, mouseY };
 
     HandleKeys(false);
     HandleKeys(true);
@@ -813,7 +815,11 @@ int InitPlatform(void)
     r.x.ax = 0x00;
     __dpmi_int(0x33, &r);
     platform.mouseSupported = r.x.ax == 0xFFFF;
-    platform.mouseMiddleClickSupported = rx.x.bx = 0x0003;
+    platform.mouseMiddleClickSupported = r.x.bx = 0x3;
+
+    r.x.ax = 0x11;
+    __dpmi_int(0x33, &r);
+    platform.mouseScrollWheelSupported = r.x.ax == 0x574d && r.x.cx & 1 == 1;
 
     VBEINFO *vbeInfo = VBEgetInfo();
     if (vbeInfo == NULL)
