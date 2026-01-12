@@ -57,6 +57,7 @@
 typedef struct {
     VBESURFACE *surface;
     bool mouseSupported;
+    bool mouseMiddleClickSupported;
 } PlatformData;
 
 //----------------------------------------------------------------------------------
@@ -330,15 +331,16 @@ void DisableCursor(void)
     CORE.Input.Mouse.cursorHidden = true;
 }
 
+// From https://opengameart.org/content/nats-8x8-ui-pack-over-50-ui-elements
 static unsigned char cursor[] = {
-  26, 26, 26, 26, 64,  0,  0,  0,
-  26, 26, 64,  0,  0,  0,  0,  0,
-  26, 64, 26, 64,  0,  0,  0,  0,
-  26, 64,  0, 26, 64,  0,  0,  0,
-   0,  0,  0,  0, 26, 64,  0,  0,
-   0,  0,  0,  0,  0, 26, 64,  0,
-   0,  0,  0,  0,  0,  0, 26, 64,
-   0,  0,  0,  0,  0,  0,  0, 26
+  229, 229, 229, 229, 191,   0,   0,   0,
+  229, 229, 191,   0,   0,   0,   0,   0,
+  229, 191, 229, 191,   0,   0,   0,   0,
+  229, 191,   0, 229, 191,   0,   0,   0,
+  191,   0,   0,   0, 229, 191,   0,   0,
+    0,   0,   0,   0,   0, 229, 191,   0,
+    0,   0,   0,   0,   0,   0, 229, 191,
+    0,   0,   0,   0,   0,   0,   0, 229
 };
 
 static void DrawCursor(void)
@@ -351,12 +353,13 @@ static void DrawCursor(void)
     unsigned int startX = 4 * (CORE.Input.Mouse.currentPosition.x + 1);
     unsigned int startY = CORE.Input.Mouse.currentPosition.y + 1;
     unsigned int incY = 2 * width;
-    unsigned int endY = platform.surface->screen_bytes; // 4 * x_res * y_res = width * height
+    unsigned int endX = CORE.Window.screen.height;
+    unsigned int endY = width * CORE.Window.screen.height;
 
     // Draw as 16x16 instead of 8x8 by unrolling to set 2x2 areas for inner loop iteration
     for (unsigned int i = 0, y = width * startY; i < 64 && y < endY; i += 8, y += incY)
     {
-        for (unsigned int j = 0, x = startX; j < 8 && x < width; ++j, x += 8)
+        for (unsigned int j = 0, x = startX; j < 8 && x < endX; ++j, x += 8)
         {
             unsigned int color = cursor[i + j];
             if (color == 0) continue;
@@ -663,6 +666,19 @@ void HandleKeys(bool extended)
     }
 }
 
+void HandleMouseButtons(unsigned int status)
+{
+    CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_LEFT] = status & 1 == 1;
+    CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_LEFT] = status & 1 == 1;
+    CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_RIGHT] = status & 2 == 1;
+    CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_RIGHT] = status & 2 == 1;
+    if (platform.mouseMiddleClickSupported)
+    {
+        CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_MIDDLE] = status & 4 == 1;
+        CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_MIDDLE] = status & 4 == 1;
+    }
+}
+
 // Register all input events
 void PollInputEvents(void)
 {
@@ -709,6 +725,7 @@ void PollInputEvents(void)
         // TODO: Register mouse buttons, stored in r.x.bx
         x = r.x.cx * platform.surface->x_resolution / 640;
         y = r.x.dx * platform.surface->y_resolution / 200;
+        HandleMouseButtons(r.x.bx);
     }
     CORE.Input.Mouse.currentPosition = (Vector2){ x, y };
 
@@ -796,6 +813,7 @@ int InitPlatform(void)
     r.x.ax = 0x00;
     __dpmi_int(0x33, &r);
     platform.mouseSupported = r.x.ax == 0xFFFF;
+    platform.mouseMiddleClickSupported = rx.x.bx = 0x0003;
 
     VBEINFO *vbeInfo = VBEgetInfo();
     if (vbeInfo == NULL)
