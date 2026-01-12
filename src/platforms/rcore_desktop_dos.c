@@ -45,6 +45,8 @@
 *
 **********************************************************************************************/
 
+#include <dpmi.h>
+
 #include "external/mkkbd3/keyboard.h"
 #include "external/vesa-dos-djgpp/src/types.h"
 #include "external/vesa-dos-djgpp/src/vesa.h"
@@ -54,6 +56,7 @@
 //----------------------------------------------------------------------------------
 typedef struct {
     VBESURFACE *surface;
+    bool mouseSupported;
 } PlatformData;
 
 //----------------------------------------------------------------------------------
@@ -327,6 +330,56 @@ void DisableCursor(void)
     CORE.Input.Mouse.cursorHidden = true;
 }
 
+static unsigned char cursor[] = {
+  26, 26, 26, 26, 64,  0,  0,  0,
+  26, 26, 64,  0,  0,  0,  0,  0,
+  26, 64, 26, 64,  0,  0,  0,  0,
+  26, 64,  0, 26, 64,  0,  0,  0,
+   0,  0,  0,  0, 26, 64,  0,  0,
+   0,  0,  0,  0,  0, 26, 64,  0,
+   0,  0,  0,  0,  0,  0, 26, 64,
+   0,  0,  0,  0,  0,  0,  0, 26
+};
+
+static void DrawCursor(void)
+{
+    unsigned char *buffer = platform.surface->offscreen_ptr;
+    unsigned int width = 4 * platform.surface->x_resolution;
+    unsigned int height = platform.surface->y_resolution;
+
+    // Add (1, 1) to point at but not cover mouse position
+    unsigned int startX = 4 * (CORE.Input.Mouse.currentPosition.x + 1);
+    unsigned int startY = CORE.Input.Mouse.currentPosition.y + 1;
+    unsigned int incY = 2 * width;
+    unsigned int endY = platform.surface->screen_bytes; // 4 * x_res * y_res = width * height
+
+    // Draw as 16x16 instead of 8x8 by unrolling to set 2x2 areas for inner loop iteration
+    for (unsigned int i = 0, y = width * startY; i < 64 && y < endY; i += 8, y += incY)
+    {
+        for (unsigned int j = 0, x = startX; j < 8 && x < width; ++j, x += 8)
+        {
+            unsigned int color = cursor[i + j];
+            if (color == 0) continue;
+
+            unsigned int bufferPos = y + x;
+            buffer[bufferPos + 0] = color;
+            buffer[bufferPos + 1] = color;
+            buffer[bufferPos + 2] = color;
+            buffer[bufferPos + 4] = color;
+            buffer[bufferPos + 5] = color;
+            buffer[bufferPos + 6] = color;
+
+            bufferPos += width;
+            buffer[bufferPos + 0] = color;
+            buffer[bufferPos + 1] = color;
+            buffer[bufferPos + 2] = color;
+            buffer[bufferPos + 4] = color;
+            buffer[bufferPos + 5] = color;
+            buffer[bufferPos + 6] = color;
+        }
+    }
+}
+
 #define MIN(a,b) (((a)<(b))? (a):(b))
 
 // Swap back buffer with front buffer (screen drawing)
@@ -352,8 +405,10 @@ void SwapScreenBuffer(void)
         size_t xSkip = 4 * (platform.surface->x_resolution - RLSW.framebuffer.width);
 
         uint8_t color[4];
-        for (int dy = 0; dy < MIN(RLSW.framebuffer.height, platform.surface->y_resolution); ++dy) {
-            for (int dx = 0; dx < MIN(RLSW.framebuffer.width, platform.surface->x_resolution); ++dx) {
+        for (int dy = 0; dy < MIN(RLSW.framebuffer.height, platform.surface->y_resolution); ++dy)
+        {
+            for (int dx = 0; dx < MIN(RLSW.framebuffer.width, platform.surface->x_resolution); ++dx)
+            {
                 sw_framebuffer_read_color8(color, src);
 
                 dst[0] = color[2];
@@ -368,6 +423,12 @@ void SwapScreenBuffer(void)
         }
     }
 
+    if (!CORE.Input.Mouse.cursorHidden)
+    {
+        DrawCursor();
+    }
+
+    // TODO: Call VGAwaitVrt?
     // Move from VBE back buffer to front buffer
     flipScreen();
 }
@@ -439,9 +500,9 @@ const char *GetKeyName(int key)
     return "";
 }
 
-static KeyboardKey GetKey(unsigned char scancode, char pressed, bool extended)
+static KeyboardKey GetKey(unsigned int scancode, char pressed, bool extended)
 {
-    unsigned short ext_scancode = scancode;
+    unsigned int ext_scancode = scancode;
     if (pressed == 0)
     {
         ext_scancode &= ~SCAN_RELEASED_PREFIX;
@@ -561,7 +622,7 @@ static KeyboardKey GetKey(unsigned char scancode, char pressed, bool extended)
     }
 }
 
-static void HandleKey(unsigned char scancode, char pressed, bool extended)
+static void HandleKey(unsigned int scancode, char pressed, bool extended)
 {
     KeyboardKey key = GetKey(scancode, pressed, extended);
 
@@ -574,7 +635,7 @@ static void HandleKey(unsigned char scancode, char pressed, bool extended)
         if ((key == CORE.Input.Keyboard.exitKey) && (pressed == 1)) CORE.Window.shouldClose = true;
 
     }
-    else TRACELOG(LOG_WARNING, "INPUT: Unknown (or currently unhandled) virtual keycode %s0x%x", extended ? "0xe0 " : "", scancode);
+    else TRACELOG(LOG_WARNING, "INPUT: Unknown (or currently unhandled) virtual keycode %s0x%hhx", extended ? "0xe0 " : "", scancode);
 
     // TODO: Add key to the queue as well?
 }
@@ -584,11 +645,11 @@ static void HandleKey(unsigned char scancode, char pressed, bool extended)
 void HandleKeys(bool extended)
 {
     volatile char *map = extended ? ext_keyboard_map : keyboard_map;
-    unsigned char start = extended ? SCAN_EXT_KP_ENTER : SCAN_ESC;
-    unsigned char end = extended ? SCAN_EXT_RGUI : SCAN_F12;
+    unsigned int start = extended ? SCAN_EXT_KP_ENTER : SCAN_ESC;
+    unsigned int end = extended ? SCAN_EXT_RGUI : SCAN_F12;
     end |= SCAN_RELEASED_PREFIX;
 
-    for (unsigned char scancode = start; scancode <= end; ++scancode)
+    for (unsigned int scancode = start; scancode <= end; ++scancode)
     {
         if (map[scancode] == 0)
         {
@@ -615,9 +676,6 @@ void PollInputEvents(void)
     CORE.Input.Keyboard.keyPressedQueueCount = 0;
     CORE.Input.Keyboard.charPressedQueueCount = 0;
 
-    // Reset key repeats
-    for (int i = 0; i < MAX_KEYBOARD_KEYS; i++) CORE.Input.Keyboard.keyRepeatInFrame[i] = 0;
-
     // Reset last gamepad button/axis registered state
     CORE.Input.Gamepad.lastButtonPressed = 0; // GAMEPAD_BUTTON_UNKNOWN
     //CORE.Input.Gamepad.axisCount = 0;
@@ -633,6 +691,26 @@ void PollInputEvents(void)
     // Register previous keys states
     memcpy(CORE.Input.Keyboard.previousKeyState, CORE.Input.Keyboard.currentKeyState, sizeof(CORE.Input.Keyboard.previousKeyState));
     memset(CORE.Input.Keyboard.keyRepeatInFrame, 0, sizeof(CORE.Input.Keyboard.keyRepeatInFrame));
+
+    // Register previous mouse wheel state
+    // TODO: Set mouse wheel position
+    CORE.Input.Mouse.previousWheelMove = CORE.Input.Mouse.currentWheelMove;
+    CORE.Input.Mouse.currentWheelMove = (Vector2){ 0.0f, 0.0f };
+
+    // Register previous mouse position
+    CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
+    unsigned int x = 0;
+    unsigned int y = 0;
+    if (platform.mouseSupported)
+    {
+        __dpmi_regs r;
+        r.x.ax = 0x03;
+        __dpmi_int(0x33, &r);
+        // TODO: Register mouse buttons, stored in r.x.bx
+        x = r.x.cx * platform.surface->x_resolution / 640;
+        y = r.x.dx * platform.surface->y_resolution / 200;
+    }
+    CORE.Input.Mouse.currentPosition = (Vector2){ x, y };
 
     HandleKeys(false);
     HandleKeys(true);
@@ -651,7 +729,8 @@ void PollInputEvents(void)
 // Module Internal Functions Definition
 //----------------------------------------------------------------------------------
 
-static unsigned short getVBEMode(VBEINFO *vbeInfo, unsigned short width) {
+static unsigned int getVBEMode(VBEINFO *vbeInfo, unsigned int width)
+{
     for (unsigned short *mode = vbeInfo->video_mode_ptr; *mode != 0xFFFF; ++mode)
     {
         MODEINFO *modeInfo = VBEgetModeInfo(*mode);
@@ -713,6 +792,11 @@ int InitPlatform(void)
         return -1;
     }
 
+    __dpmi_regs r;
+    r.x.ax = 0x00;
+    __dpmi_int(0x33, &r);
+    platform.mouseSupported = r.x.ax == 0xFFFF;
+
     VBEINFO *vbeInfo = VBEgetInfo();
     if (vbeInfo == NULL)
     {
@@ -720,7 +804,7 @@ int InitPlatform(void)
       return -1;
     }
 
-    unsigned short modeID = getVBEMode(vbeInfo, 720);
+    unsigned int modeID = getVBEMode(vbeInfo, 720);
     if (modeID == 0xFFFF)
     {
         modeID = getVBEMode(vbeInfo, 640);
@@ -783,6 +867,7 @@ int InitPlatform(void)
 // Close platform
 void ClosePlatform(void)
 {
+    keyboard_chain(1);
     keyboard_close();
     VBEshutdown();
 }
