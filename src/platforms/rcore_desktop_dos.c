@@ -197,43 +197,37 @@ void SetWindowFocused(void)
 // Get native window handle
 void *GetWindowHandle(void)
 {
-    TRACELOG(LOG_WARNING, "GetWindowHandle() not implemented on target platform");
-    return NULL;
+    return platform.surface;
 }
 
 // Get number of monitors
 int GetMonitorCount(void)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorCount() not implemented on target platform");
     return 1;
 }
 
 // Get current monitor where window is placed
 int GetCurrentMonitor(void)
 {
-    TRACELOG(LOG_WARNING, "GetCurrentMonitor() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor position
 Vector2 GetMonitorPosition(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorPosition() not implemented on target platform");
     return (Vector2){ 0, 0 };
 }
 
 // Get selected monitor width (currently used by monitor)
 int GetMonitorWidth(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorWidth() not implemented on target platform");
-    return 0;
+    return platform.surface->x_resolution;
 }
 
 // Get selected monitor height (currently used by monitor)
 int GetMonitorHeight(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorHeight() not implemented on target platform");
-    return 0;
+    return platform.surface->y_resolution;
 }
 
 // Get selected monitor physical width in millimetres
@@ -267,7 +261,6 @@ const char *GetMonitorName(int monitor)
 // Get window position XY on monitor
 Vector2 GetWindowPosition(void)
 {
-    TRACELOG(LOG_WARNING, "GetWindowPosition() not implemented on target platform");
     return (Vector2){ 0, 0 };
 }
 
@@ -285,7 +278,6 @@ void SetClipboardText(const char *text)
 }
 
 // Get clipboard text content
-// NOTE: returned string is allocated and freed by GLFW
 const char *GetClipboardText(void)
 {
     TRACELOG(LOG_WARNING, "GetClipboardText() not implemented on target platform");
