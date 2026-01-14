@@ -846,7 +846,12 @@ int InitPlatform(void)
 
     // TODO: Handle flags
 
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
+    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
+    {
+        CORE.Input.Mouse.scale.x =  (float)CORE.Window.screen.width / CORE.Window.display.width;
+        CORE.Input.Mouse.scale.y = (float)CORE.Window.screen.height / CORE.Window.display.height;
+    }
+    else
     {
         CORE.Window.screen.width = MIN(CORE.Window.screen.width, CORE.Window.display.width);
         CORE.Window.screen.height = MIN(CORE.Window.screen.height, CORE.Window.display.height);
