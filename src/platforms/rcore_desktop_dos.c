@@ -221,13 +221,13 @@ Vector2 GetMonitorPosition(int monitor)
 // Get selected monitor width (currently used by monitor)
 int GetMonitorWidth(int monitor)
 {
-    return platform.surface->x_resolution;
+    return CORE.Window.display.width;
 }
 
 // Get selected monitor height (currently used by monitor)
 int GetMonitorHeight(int monitor)
 {
-    return platform.surface->y_resolution;
+    return CORE.Window.display.width;
 }
 
 // Get selected monitor physical width in millimetres
@@ -346,7 +346,7 @@ static void DrawCursor(void)
     unsigned int startX = 4 * (CORE.Input.Mouse.currentPosition.x + 1);
     unsigned int startY = CORE.Input.Mouse.currentPosition.y + 1;
     unsigned int incY = 2 * width;
-    unsigned int endX = CORE.Window.screen.height;
+    unsigned int endX = 4 * CORE.Window.screen.width;
     unsigned int endY = width * CORE.Window.screen.height;
 
     // Draw as 16x16 instead of 8x8 by unrolling to set 2x2 areas for inner loop iteration
@@ -390,7 +390,7 @@ void SwapScreenBuffer(void)
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
     {
         // TODO: Explicitly set every fourth byte to 0
-        swBlitFramebuffer(0, 0, platform.surface->x_resolution, platform.surface->y_resolution, 0, 0, RLSW.framebuffer.width, RLSW.framebuffer.height, SW_RGBA, SW_UNSIGNED_BYTE, platform.surface->offscreen_ptr);
+        swBlitFramebuffer(0, 0, CORE.Window.display.width, CORE.Window.display.height, 0, 0, RLSW.framebuffer.width, RLSW.framebuffer.height, SW_RGBA, SW_UNSIGNED_BYTE, platform.surface->offscreen_ptr);
     }
     else
     {
@@ -398,12 +398,12 @@ void SwapScreenBuffer(void)
         const sw_pixel_t *src = RLSW.framebuffer.pixels;
         uint8_t *dst = platform.surface->offscreen_ptr;
 
-        size_t xSkip = 4 * (platform.surface->x_resolution - RLSW.framebuffer.width);
+        size_t xSkip = 4 * (CORE.Window.display.width - RLSW.framebuffer.width);
 
         uint8_t color[4];
-        for (int dy = 0; dy < MIN(RLSW.framebuffer.height, platform.surface->y_resolution); ++dy)
+        for (int dy = 0; dy < MIN(RLSW.framebuffer.height, CORE.Window.display.height); ++dy)
         {
-            for (int dx = 0; dx < MIN(RLSW.framebuffer.width, platform.surface->x_resolution); ++dx)
+            for (int dx = 0; dx < MIN(RLSW.framebuffer.width, CORE.Window.display.width); ++dx)
             {
                 sw_framebuffer_read_color8(color, src);
 
@@ -711,8 +711,8 @@ void PollInputEvents(void)
         __dpmi_int(0x33, &r);
         HandleMouseButtons(r.x.bx);
         if (platform.mouseScrollWheelSupported) mouseScroll = (short)r.x.bx >> 8;
-        mouseX = r.x.cx * platform.surface->x_resolution / 640;
-        mouseY = r.x.dx * platform.surface->y_resolution / 200;
+        mouseX = r.x.cx * CORE.Window.display.width / 640;
+        mouseY = r.x.dx * CORE.Window.display.height / 200;
     }
 
     // Register previous mouse wheel state
@@ -848,7 +848,7 @@ int InitPlatform(void)
 
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
     {
-        CORE.Input.Mouse.scale.x =  (float)CORE.Window.screen.width / CORE.Window.display.width;
+        CORE.Input.Mouse.scale.x = (float)CORE.Window.screen.width / CORE.Window.display.width;
         CORE.Input.Mouse.scale.y = (float)CORE.Window.screen.height / CORE.Window.display.height;
     }
     else
