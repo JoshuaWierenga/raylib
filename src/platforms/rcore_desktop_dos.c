@@ -438,8 +438,10 @@ double GetTime(void)
 {
     double time = 0.0;
 
-    clock_t ticks = clock();
-    time = (double)(ticks - CORE.Time.base)/CLOCKS_PER_SEC;  // Elapsed time since InitTimer()
+    // clock/rawclock have 18.2 ticks per second which leads to inaccurate fps reporting
+    // uclock has 1193180 ticks per second but rolls over every 24 to 48 hours
+    uclock_t ticks = uclock();
+    time = (double)ticks/UCLOCKS_PER_SEC;  // Elapsed time since InitTimer()
 
     return time;
 }
@@ -661,14 +663,14 @@ void HandleKeys(bool extended)
 
 void HandleMouseButtons(unsigned int status)
 {
-    CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_LEFT] = status & 1 == 1;
-    CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_LEFT] = status & 1 == 1;
-    CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_RIGHT] = status & 2 == 1;
-    CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_RIGHT] = status & 2 == 1;
+    CORE.Input.Mouse.currentButtonState[MOUSE_LEFT_BUTTON] = (status & 1) != 0;
+    CORE.Input.Touch.currentTouchState[MOUSE_LEFT_BUTTON] = (status & 1) != 0;
+    CORE.Input.Mouse.currentButtonState[MOUSE_RIGHT_BUTTON] = (status & 2) != 0;
+    CORE.Input.Touch.currentTouchState[MOUSE_RIGHT_BUTTON] = (status & 2) != 0;
     if (platform.mouseMiddleClickSupported)
     {
-        CORE.Input.Mouse.currentButtonState[MOUSE_BUTTON_MIDDLE] = status & 4 == 1;
-        CORE.Input.Touch.currentTouchState[MOUSE_BUTTON_MIDDLE] = status & 4 == 1;
+        CORE.Input.Mouse.currentButtonState[MOUSE_MIDDLE_BUTTON] = (status & 4) != 0;
+        CORE.Input.Touch.currentTouchState[MOUSE_MIDDLE_BUTTON] = (status & 4) != 0;
     }
 }
 
@@ -747,13 +749,13 @@ static unsigned int getVBEMode(VBEINFO *vbeInfo, unsigned int width)
         MODEINFO *modeInfo = VBEgetModeInfo(*mode);
         if (modeInfo == NULL)
         {
-          break;
+            break;
         }
 
         // Skip modes without a linear frame buffer
         if ((modeInfo->mode_attributes & 0x80) != 0x80)
         {
-          continue;
+            continue;
         }
 
         // Skip modes with complex color encodings
@@ -783,7 +785,7 @@ static unsigned int getVBEMode(VBEINFO *vbeInfo, unsigned int width)
         // Skip modes not using BGRX, RGBX would be better but dosbox-x doesn't use it so I can't test
         if (modeInfo->blue_field_position != 0 || modeInfo->green_field_position != 8 || modeInfo->red_field_position != 16)
         {
-          continue;
+            continue;
         }
 
         return *mode;
@@ -816,8 +818,8 @@ int InitPlatform(void)
     VBEINFO *vbeInfo = VBEgetInfo();
     if (vbeInfo == NULL)
     {
-      TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize platform");
-      return -1;
+        TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize platform");
+        return -1;
     }
 
     unsigned int modeID = getVBEMode(vbeInfo, 720);
@@ -871,7 +873,8 @@ int InitPlatform(void)
 
     // Initialize timing system
     //----------------------------------------------------------------------------
-    CORE.Time.base = clock();
+    // First call to uclock always returns 0 so just need to call it to start timing
+    uclock();
     InitTimer();
     //----------------------------------------------------------------------------
 
