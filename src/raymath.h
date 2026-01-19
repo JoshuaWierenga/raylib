@@ -173,9 +173,6 @@ typedef struct float16 {
 } float16;
 
 #include <math.h>       // Required for: sinf(), cosf(), tan(), atan2f(), sqrtf(), floor(), fminf(), fmaxf(), fabsf()
-#if defined(PLATFORM_DESKTOP_DOS)
-    #include "utils.h"          // Required for fminf(), fmaxf()
-#endif
 
 #if defined(RAYMATH_USE_SIMD_INTRINSICS)
     // SIMD is used on the most costly raymath function MatrixMultiply()
