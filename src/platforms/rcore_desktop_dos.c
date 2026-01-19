@@ -9,15 +9,11 @@
 *       - Software renderer (rlsw)
 *
 *   POSSIBLE IMPROVEMENTS:
-*       - Improvement 01
-*       - Improvement 02
-*
-*   ADDITIONAL NOTES:
-*       - TRACELOG() function is located in raylib [utils] module
+*       - TBD
 *
 *   CONFIGURATION:
-*       #define RCORE_PLATFORM_CUSTOM_FLAG
-*           Custom flag for rcore on target platform -not used-
+*       #define PLATFORM_DESKTOP_DOS
+*           Custom flag for rcore on target platform DOS
 *
 *   DEPENDENCIES:
 *       - rlsw: Software renderer
@@ -47,7 +43,7 @@
 
 #include <dpmi.h>     // Required for: __dpmi_int(), __dpmi_regs
 #include <math.h>     // Required for: isnan(), signbit()
-#include <stdarg.h>   // Required for va_list
+#include <stdarg.h>   // Required for: va_end(), va_list, va_start(0)
 #include <sys/mono.h> // Required for: _mono_printf(), _mono_putc()
 
 #include "external/mkkbd3/keyboard.h"

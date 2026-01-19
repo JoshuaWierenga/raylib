@@ -3246,7 +3246,7 @@ bool rlCheckRenderBatchLimit(int vCount)
 // Convert image data to OpenGL texture (returns OpenGL valid Id)
 unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)
 {
-    unsigned int id = 0;
+    uint32_t id = 0;
     if (!isGpuReady) { TRACELOG(RL_LOG_WARNING, "GL: GPU is not ready to load data, trying to load before InitWindow()?"); return id; }
 
     glBindTexture(GL_TEXTURE_2D, 0);    // Free any old binding
@@ -3655,7 +3655,7 @@ void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned 
 // Unload texture from GPU memory
 void rlUnloadTexture(unsigned int id)
 {
-    glDeleteTextures(1, &id);
+    glDeleteTextures(1, (uint32_t *)&id);
 }
 
 // Generate mipmap data for selected texture

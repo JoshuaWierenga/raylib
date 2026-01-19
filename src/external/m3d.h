@@ -2275,7 +2275,7 @@ void _m3d_getpr(m3d_t *model, _unused m3dread_t readfilecb, _unused  m3dfree_t f
 #endif
 }
 /* helpers to read indices from data stream */
-#define M3D_GETSTR(x) do{offs=0;data=_m3d_getidx(data,model->si_s,&offs);x=offs?((char*)model->raw+16+offs):NULL;}while(0)
+#define M3D_GETSTR(x) do{M3D_INDEX offs=0;data=_m3d_getidx(data,model->si_s,&offs);x=offs?((char*)model->raw+16+offs):NULL;}while(0)
 _inline static unsigned char *_m3d_getidx(unsigned char *data, char type, M3D_INDEX *idx)
 {
     switch(type) {
