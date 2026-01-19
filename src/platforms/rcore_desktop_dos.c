@@ -340,14 +340,24 @@ static void DrawCursor(void)
 {
     unsigned char *buffer = platform.surface->offscreen_ptr;
     unsigned int width = 4 * platform.surface->x_resolution;
-    unsigned int height = platform.surface->y_resolution;
 
     // Add (1, 1) to point at but not cover mouse position
     unsigned int startX = 4 * (CORE.Input.Mouse.currentPosition.x + 1);
     unsigned int startY = CORE.Input.Mouse.currentPosition.y + 1;
     unsigned int incY = 2 * width;
-    unsigned int endX = 4 * CORE.Window.screen.width;
-    unsigned int endY = width * CORE.Window.screen.height;
+
+    unsigned int endX;
+    unsigned int endY;
+    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_DOS_SCALE))
+    {
+        endX = width;
+        endY = width * platform.surface->y_resolution;
+    }
+    else
+    {
+        endX = 4 * CORE.Window.screen.width;
+        endY = width * CORE.Window.screen.height;
+    }
 
     // Draw as 16x16 instead of 8x8 by unrolling to set 2x2 areas for inner loop iteration
     for (unsigned int i = 0, y = width * startY; i < 64 && y < endY; i += 8, y += incY)
